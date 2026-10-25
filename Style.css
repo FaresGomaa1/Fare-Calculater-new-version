@@ -1,336 +1,288 @@
-/* ==========================================================================
-   ROOT VARIABLES & THEME
-   Defines the core design system: colors, spacing, shadows, typography
-========================================================================== 
-*/
+/* =========================================================
+   Fare Calculator — minimal custom CSS on top of Bootstrap 5
+   Theming via CSS variables; styled via classes only.
+   ========================================================= */
+
 :root {
-  /* Color Palette - Modern Indigo & Slate */
-  --color-primary: #4f46e5;
-  --color-primary-hover: #4338ca;
-  --color-primary-light: #e0e7ff;
-  --color-secondary: #64748b;
-  --color-success: #10b981;
-  --color-danger: #ef4444;
-  
-  /* Backgrounds & Surfaces */
-  --bg-body: #f8fafc;
-  --bg-surface: #ffffff;
-  --bg-input: #f1f5f9;
-  --bg-hover: #f1f5f9;
-  
-  /* Typography Colors */
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  
-  /* Borders & Shadows */
-  --border-color: #e2e8f0;
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1.25rem;
-  
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
-  --shadow-focus: 0 0 0 4px rgba(79, 70, 229, 0.15);
-  
-  /* Transitions */
-  --transition-fast: 0.15s ease-in-out;
-  --transition-normal: 0.3s ease;
+  --fc-font: "Cairo", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+  --fc-bg: #f2f5fa;
+  --fc-card-bg: #ffffff;
+  --fc-border: #dde3ee;
+  --fc-header-from: #0b5ed7;
+  --fc-header-to: #3d8bfd;
+  --fc-muted: #5b6577;
+  --fc-focus: #ffbf00;
+
+  --fc-entries: #0d6efd;
+  --fc-people: #6f42c1;
+  --fc-remaining: #b35900;
+  --fc-required: #0a7a8f;
+  --fc-collected: #146c43;
+
+  --fc-radius: 1rem;
+  --fc-shadow: 0 2px 10px rgba(16, 24, 40, .08);
 }
 
-/* ==========================================================================
-   GLOBAL RESET & TYPOGRAPHY
-========================================================================== 
-*/
+[data-bs-theme="dark"] {
+  --fc-bg: #0f141b;
+  --fc-card-bg: #182029;
+  --fc-border: #2b3643;
+  --fc-header-from: #0a3a8a;
+  --fc-header-to: #1b5fc9;
+  --fc-muted: #a3afc0;
+  --fc-focus: #ffd24a;
+
+  --fc-entries: #6ea8fe;
+  --fc-people: #b197fc;
+  --fc-remaining: #ffb366;
+  --fc-required: #4dd0e1;
+  --fc-collected: #75b798;
+  --fc-shadow: 0 2px 10px rgba(0, 0, 0, .4);
+}
+
+/* ---------- Base ---------- */
+html { scroll-behavior: smooth; }
+
 body {
-  font-family: 'Cairo', system-ui, -apple-system, sans-serif;
-  background-color: var(--bg-body);
-  color: var(--text-main);
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-::selection {
-  background-color: var(--color-primary-light);
-  color: var(--color-primary);
-}
-
-/* ==========================================================================
-   HEADER & BRANDING
-========================================================================== 
-*/
-.site-header {
-  background-color: var(--bg-surface);
-  border-bottom: 1px solid var(--border-color);
-  /* Override Bootstrap shadow-sm with a cleaner custom shadow */
-  box-shadow: var(--shadow-sm) !important; 
-  position: sticky;
-  top: 0;
-  z-index: 1020;
-}
-
-.app-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-  color: var(--color-primary);
-  border-radius: var(--radius-md);
-  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.6), 0 2px 5px rgba(0,0,0,0.05);
-  transition: transform var(--transition-fast);
-}
-
-.site-header:hover .app-icon {
-  transform: scale(1.05) rotate(-3deg);
-}
-
-/* ==========================================================================
-   MAIN CARD & LAYOUT
-========================================================================== 
-*/
-@keyframes slideUpFade {
-  from { opacity: 0; transform: translateY(15px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.app-card {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md) !important;
-  animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  overflow: hidden;
-}
-
-.app-card > section h2 {
-  font-size: 1.1rem;
-  color: var(--text-main);
-  padding-bottom: 0.75rem;
-  border-bottom: 2px solid var(--bg-body);
-}
-
-/* ==========================================================================
-   FORM ELEMENTS
-========================================================================== 
-*/
-.form-label {
-  font-weight: 600;
-  font-size: 0.95rem;
-  margin-bottom: 0.4rem;
-  color: var(--text-main);
-}
-
-.form-control {
-  background-color: var(--bg-input);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  padding: 0.75rem 1rem;
-  font-weight: 600;
-  color: var(--text-main);
-  transition: all var(--transition-fast);
-}
-
-.form-control::placeholder {
-  color: #94a3b8;
-  font-weight: 400;
-}
-
-.form-control:hover {
-  background-color: var(--bg-surface);
-  border-color: #cbd5e1;
-}
-
-.form-control:focus {
-  background-color: var(--bg-surface);
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-focus);
-}
-
-.form-text {
-  color: var(--text-muted) !important;
-  margin-top: 0.4rem;
-}
-
-/* ==========================================================================
-   BUTTONS
-========================================================================== 
-*/
-.btn {
-  font-weight: 700;
-  padding: 0.65rem 1.25rem;
-  border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.btn-primary {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #ffffff;
-  box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
-}
-
-.btn-primary:hover, .btn-primary:focus {
-  background-color: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 8px -1px rgba(79, 70, 229, 0.3);
-}
-
-.btn-primary:active {
-  transform: translateY(0);
-}
-
-.btn-outline-secondary {
-  color: var(--text-muted);
-  border: 1px solid var(--border-color);
-  background-color: var(--bg-surface);
-}
-
-.btn-outline-secondary:hover, .btn-outline-secondary:focus {
-  background-color: var(--bg-hover);
-  color: var(--text-main);
-  border-color: #cbd5e1;
-}
-
-/* ==========================================================================
-   TABLE STYLES & RESPONSIVENESS
-========================================================================== 
-*/
-.table-responsive {
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background-color: var(--bg-surface);
-  /* Modern custom scrollbar for horizontal scrolling */
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
-}
-
-.table-responsive::-webkit-scrollbar {
-  height: 8px;
-}
-.table-responsive::-webkit-scrollbar-track {
-  background: transparent;
-}
-.table-responsive::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 20px;
-  border: 2px solid var(--bg-surface);
-}
-
-.result-table {
-  margin-bottom: 0;
-  min-width: 600px; /* Ensures horizontal scroll triggers safely on mobile */
-}
-
-.result-table thead th {
-  background-color: var(--bg-body);
-  color: var(--text-muted);
-  font-weight: 700;
-  text-transform: uppercase;
-  font-size: 0.85rem;
-  letter-spacing: 0.5px;
-  padding: 1rem;
-  border-bottom: 1px solid var(--border-color);
-  white-space: nowrap;
-}
-
-.result-table tbody td {
-  padding: 1rem;
-  font-weight: 600;
-  border-bottom: 1px solid var(--border-color);
-  vertical-align: middle;
-}
-
-.result-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.result-table tbody tr {
-  transition: background-color var(--transition-fast);
-}
-
-.result-table tbody tr:hover {
-  background-color: var(--bg-hover) !important;
-}
-
-/* Empty state styling inside table */
-.result-table tbody tr .py-4 {
-  color: #94a3b8;
-  font-weight: 400;
-  font-size: 0.95rem;
-}
-
-/* ==========================================================================
-   TOTALS SECTION (SUMMARY CARDS)
-========================================================================== 
-*/
-.totals-list {
-  margin-top: 1.5rem;
-}
-
-.totals-list > div {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: 1.25rem 1rem;
-  text-align: center;
-  transition: all var(--transition-normal);
+  font-family: var(--fc-font);
+  background: var(--fc-bg);
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
 }
 
-.totals-list > div:hover {
-  border-color: var(--color-primary-light);
-  background-color: var(--bg-hover);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
-}
+main { flex: 1 0 auto; max-width: 760px; }
 
-.totals-list dt {
-  font-size: 0.75rem;
+.form-text, .text-body-secondary { color: var(--fc-muted) !important; }
+
+/* ---------- Accessibility ---------- */
+.skip-link {
+  position: absolute;
+  inset-inline-start: .5rem;
+  top: -4rem;
+  z-index: 2000;
+  padding: .6rem 1rem;
+  background: var(--fc-focus);
+  color: #000;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-muted);
-  margin-bottom: 0.5rem;
+  border-radius: .5rem;
+  transition: top .15s;
+}
+.skip-link:focus { top: .5rem; }
+
+:focus-visible {
+  outline: 3px solid var(--fc-focus) !important;
+  outline-offset: 2px;
+}
+main:focus { outline: none !important; }
+
+/* ---------- Header ---------- */
+.app-header {
+  background: linear-gradient(135deg, var(--fc-header-from), var(--fc-header-to));
+  color: #fff;
+  padding: 1rem 0 1.25rem;
+  box-shadow: var(--fc-shadow);
+}
+.app-header__inner {
+  max-width: 760px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+.app-title { font-size: 1.5rem; font-weight: 700; margin: 0; }
+.app-tagline { opacity: .95; font-size: .95rem; }
+.header-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.header-actions .btn { min-height: 44px; min-width: 44px; font-weight: 600; }
+
+/* ---------- Cards ---------- */
+.app-card {
+  background: var(--fc-card-bg);
+  border: 1px solid var(--fc-border);
+  border-radius: var(--fc-radius);
+  box-shadow: var(--fc-shadow);
+  padding: 1.1rem;
+  margin-bottom: 1.1rem;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: 1rem;
+  font-weight: 700;
 }
 
-.totals-list dd {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--color-primary);
-  line-height: 1.2;
+/* ---------- Form ---------- */
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.form-control-lg, .input-group-lg > .form-control { font-size: 1.25rem; min-height: 54px; }
+.input-group-lg > .btn { min-width: 54px; }
+.form-control.is-invalid { background-position: left calc(.375em + .1875rem) center; }
+
+.quick-amounts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .5rem;
+  margin-top: .6rem;
+}
+@media (min-width: 480px) { .quick-amounts { grid-template-columns: repeat(6, 1fr); } }
+.quick-amounts .btn { min-height: 46px; font-weight: 700; }
+
+.preview {
+  background: color-mix(in srgb, var(--fc-entries) 10%, transparent);
+  border: 1px dashed var(--fc-entries);
+  border-radius: .75rem;
+  padding: .75rem 1rem;
+  margin-bottom: 1rem;
+}
+.preview__list { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.preview__list dt { font-size: .85rem; color: var(--fc-muted); font-weight: 600; }
+.preview__list dd { margin: 0; font-size: 1.3rem; font-weight: 700; }
+.preview output.is-neg { color: var(--bs-danger-text-emphasis); }
+.preview output.is-pos { color: var(--bs-success-text-emphasis); }
+
+.form-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.form-actions .btn { flex: 1 1 auto; min-height: 52px; font-weight: 700; }
+.form-actions #submitBtn { flex: 2 1 160px; }
+
+/* ---------- Results ---------- */
+.results-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.results-tools { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.filter-group { display: inline-flex; border-radius: .5rem; }
+.filter-group .btn { min-height: 42px; border-radius: 0; }
+.filter-group .btn:first-of-type { border-start-start-radius: .5rem; border-end-start-radius: .5rem; }
+.filter-group .btn:last-of-type { border-start-end-radius: .5rem; border-end-end-radius: .5rem; }
+.results-tools .btn { min-height: 42px; }
+
+.empty-state {
+  text-align: center;
+  color: var(--fc-muted);
+  padding: 1.75rem 1rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  align-items: center;
+}
+.empty-state i { font-size: 2.2rem; opacity: .7; }
+.empty-state[hidden] { display: none; }
+
+.ops-table { margin-bottom: 0; white-space: nowrap; }
+.ops-table th, .ops-table td { vertical-align: middle; }
+.ops-table tfoot th, .ops-table tfoot td { font-weight: 700; border-top: 2px solid var(--fc-border); }
+.op-amount { font-weight: 700; }
+.op-actions { display: flex; gap: .35rem; }
+.op-actions .btn { min-width: 40px; min-height: 40px; }
+
+.op-row.is-done > * { opacity: .6; }
+.op-row.is-done .op-paid,
+.op-row.is-done .op-people,
+.op-row.is-done .op-change { text-decoration: line-through; }
+.op-row.is-done .op-actions,
+.op-row.is-done .form-check { opacity: 1; }
+
+.op-row.is-editing { outline: 2px solid var(--fc-entries); outline-offset: -2px; }
+
+.op-status { color: #fff; font-weight: 600; padding: .45em .7em; font-size: .85rem; }
+.op-status.is-owed { background: #0a58ca; }        /* change owed back */
+.op-status.is-paid { background: #146c43; }        /* paid in full */
+.op-status.is-short { background: #b02a37; }       /* underpaid */
+.op-status strong { font-weight: 600; }
+
+.form-switch .form-check-input { width: 2.6em; height: 1.4em; cursor: pointer; }
+.form-switch .form-check-label { cursor: pointer; }
+
+/* ---------- Summary ---------- */
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .75rem;
+}
+@media (min-width: 640px) { .summary-grid { grid-template-columns: repeat(3, 1fr); } }
+.summary-card {
+  --accent: var(--fc-entries);
+  background: color-mix(in srgb, var(--accent) 9%, var(--fc-card-bg));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-inline-start: 5px solid var(--accent);
+  border-radius: .8rem;
+  padding: .8rem .9rem;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+.summary-card dt { font-size: .82rem; font-weight: 600; color: var(--fc-muted); display: flex; gap: .4rem; align-items: flex-start; }
+.summary-card dt i { color: var(--accent); margin-top: .2rem; }
+.summary-card dd { margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+.summary-card--entries { --accent: var(--fc-entries); }
+.summary-card--people { --accent: var(--fc-people); }
+.summary-card--remaining { --accent: var(--fc-remaining); }
+.summary-card--required { --accent: var(--fc-required); }
+.summary-card--collected { --accent: var(--fc-collected); }
+
+/* ---------- Footer ---------- */
+.app-footer {
+  text-align: center;
+  padding: 1rem;
+  color: var(--fc-muted);
+  border-top: 1px solid var(--fc-border);
 }
 
-/* Mobile specific tweaks for the summary cards */
-@media (max-width: 768px) {
-  .totals-list > div {
-    padding: 1rem 0.5rem;
+/* ---------- Misc ---------- */
+.print-only { display: none; }
+.modal-header .btn-close { margin: 0 auto 0 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; animation: none !important; }
+}
+
+/* ---------- Mobile: table rows become cards ---------- */
+@media (max-width: 575.98px) {
+  .ops-table { white-space: normal; }
+  .ops-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .ops-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .35rem .75rem;
+    padding: .75rem;
+    margin-bottom: .75rem;
+    border: 1px solid var(--fc-border);
+    border-radius: .8rem;
   }
-  .totals-list dd {
-    font-size: 1.25rem;
+  .ops-table tbody th,
+  .ops-table tbody td { display: block; border: 0; padding: 0; background: transparent; box-shadow: none; }
+  .ops-table tbody th.op-amount { grid-column: 1 / -1; }
+  .ops-table tbody td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: .75rem;
+    color: var(--fc-muted);
+    font-weight: 600;
   }
+  .ops-table tfoot { display: block; }
+  .ops-table tfoot tr { display: flex; flex-wrap: wrap; gap: .75rem; padding: .5rem; }
+  .ops-table tfoot th, .ops-table tfoot td { border: 0; padding: 0; }
+  .ops-table tfoot td[colspan] { display: none; }
 }
 
-/* ==========================================================================
-   FOOTER
-========================================================================== 
-*/
-footer {
-  color: #94a3b8;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+/* ---------- Print ---------- */
+@media print {
+  :root { --fc-bg: #fff; --fc-card-bg: #fff; --fc-border: #999; }
+  body { background: #fff; color: #000; }
+  .no-print, .skip-link, .toast-container, .modal { display: none !important; }
+  .print-only { display: block; font-size: .85rem; }
+  .app-header { background: none; color: #000; box-shadow: none; border-bottom: 2px solid #000; }
+  .app-card { box-shadow: none; break-inside: avoid; }
+  .op-status { color: #000 !important; background: none !important; border: 1px solid #000; }
+  .summary-card { border: 1px solid #000; background: none; }
+  .summary-card dd, .summary-card dt i { color: #000; }
+  .op-row.is-done > * { opacity: 1; }
+  .table-responsive { overflow: visible; }
 }

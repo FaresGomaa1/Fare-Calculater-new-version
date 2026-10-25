@@ -1,148 +1,421 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-bs-theme="light">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="حاسبة الأجرة: قسّم المبلغ على الركاب واحسب الباقي بسرعة. تعمل بدون إنترنت.">
+  <meta name="theme-color" content="#0d6efd">
+  <meta name="color-scheme" content="light dark">
   <title>حاسبة الأجرة</title>
 
-  <!-- Cairo Arabic font -->
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
 
-  <!-- Bootstrap RTL -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+  <!-- Font: Cairo -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&amp;display=swap" rel="stylesheet">
 
-  <!-- Font Awesome -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <!-- Bootstrap 5 (RTL build) + Font Awesome -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
 
-  <!-- Custom CSS -->
-  <link rel="stylesheet" href="Style.css">
+  <script>
+    /* Apply the saved theme before first paint to avoid a light/dark flash. */
+    (function () {
+      try {
+        var saved = JSON.parse(localStorage.getItem('fareCalc:v1') || '{}');
+        var t = saved.theme;
+        var dark = t === 'dark' || ((!t || t === 'auto') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
 </head>
 <body>
-  <header class="site-header py-3 shadow-sm">
-    <div class="container d-flex gap-3 align-items-center justify-content-between">
-      <div class="d-flex align-items-center gap-3">
-        <span class="app-icon">
-          <i class="fa-solid fa-calculator fa-lg"></i>
-        </span>
-        <div>
-          <h1 class="h5 mb-0">حاسبة الأجرة</h1>
-          <p class="text-muted small mb-0">قسّم المبلغ واحسب الباقي بسرعة</p>
-        </div>
+  <a class="skip-link" href="#main">تخطي إلى المحتوى</a>
+
+  <!-- ===================== Header ===================== -->
+  <header class="app-header">
+    <div class="container app-header__inner">
+      <div>
+        <h1 class="app-title">
+          <i class="fa-solid fa-van-shuttle" aria-hidden="true"></i>
+          حاسبة الأجرة
+        </h1>
+        <p class="app-tagline mb-0">قسّم المبلغ واحسب الباقي بسرعة</p>
+        <p class="print-only mb-0" id="printStamp"></p>
       </div>
-      <div class="d-none d-sm-flex align-items-center gap-2">
-        <button class="btn btn-sm btn-outline-primary" type="button" aria-label="مساعدة">
-          <i class="fa-regular fa-circle-question me-1"></i> تعليمات
+
+      <div class="header-actions" role="group" aria-label="أدوات التطبيق">
+        <button type="button" class="btn btn-light" id="themeToggle" aria-label="الوضع الداكن" aria-pressed="false">
+          <i class="fa-solid fa-moon" id="themeIcon" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="btn btn-light" id="soundToggle" aria-label="الصوت والاهتزاز" aria-pressed="true">
+          <i class="fa-solid fa-volume-high" id="soundIcon" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#settingsModal">
+          <i class="fa-solid fa-gear" aria-hidden="true"></i>
+          <span class="d-none d-sm-inline">الإعدادات</span>
+          <span class="visually-hidden d-sm-none">الإعدادات</span>
+        </button>
+        <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#instructionsModal">
+          <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
+          تعليمات
         </button>
       </div>
     </div>
   </header>
 
-  <main class="py-4">
-    <div class="container">
-      <article class="card p-3 p-md-4 app-card shadow-sm">
-        <section aria-labelledby="inputHeading" class="mb-3">
-          <h2 id="inputHeading" class="h6 mb-3 d-flex align-items-center gap-2">
-            <i class="fa-solid fa-keyboard me-1 text-secondary"></i> المدخلات
-          </h2>
+  <!-- ===================== Main ===================== -->
+  <main id="main" class="container py-4" tabindex="-1">
+    <noscript><p class="alert alert-warning">يتطلب التطبيق تفعيل JavaScript.</p></noscript>
 
-          <form id="entryForm" class="row g-3" role="form" autocomplete="off">
-            <div class="col-12 col-md-4">
-              <label for="fare" class="form-label">الأجرة للفرد</label>
-              <input type="number" id="fare" class="form-control" placeholder="مثال: 10.5" min="0" step="any" aria-label="الأجرة للفرد" />
-              <div class="form-text small">قيمة الأجرة لكل شخص</div>
+    <!-- 1) Inputs -->
+    <section class="app-card no-print" aria-labelledby="inputs-title">
+      <h2 id="inputs-title" class="h5 section-title">
+        <i class="fa-solid fa-calculator" aria-hidden="true"></i>
+        بيانات العملية
+      </h2>
+
+      <form id="fareForm" novalidate autocomplete="off">
+        <fieldset>
+          <legend class="visually-hidden">بيانات العملية</legend>
+
+          <div class="mb-3">
+            <label for="fare" class="form-label fw-semibold">الأجرة للفرد</label>
+            <div class="input-group input-group-lg">
+              <span class="input-group-text"><i class="fa-solid fa-tag" aria-hidden="true"></i></span>
+              <input type="number" class="form-control" id="fare" name="fare" inputmode="decimal"
+                     min="0" step="any" required aria-describedby="fareHelp fareError">
+              <span class="input-group-text" data-currency></span>
             </div>
-
-            <div class="col-12 col-md-4">
-              <label for="amount" class="form-label">المبلغ الإجمالي</label>
-              <input type="number" id="amount" class="form-control" placeholder="مثال: 100" min="0" step="any" aria-label="المبلغ الإجمالي" />
-              <div class="form-text small">المبلغ الكلي الذي تم دفعه أو المدخل</div>
-            </div>
-
-            <div class="col-12 col-md-4">
-              <label for="persons" class="form-label">عدد الأشخاص</label>
-              <input type="number" id="persons" class="form-control" placeholder="مثال: 3" min="1" aria-label="عدد الأشخاص" />
-              <div class="form-text small">كم عدد الأشخاص المشتركين؟</div>
-            </div>
-
-            <div class="col-12 d-grid gap-2 d-md-flex justify-content-start">
-              <button type="submit" class="btn btn-primary flex-md-grow-0 flex-fill" id="addBtn">
-                <i class="fa-solid fa-plus me-2"></i> إضافة
-              </button>
-
-              <button type="button" class="btn btn-outline-secondary flex-md-grow-0 flex-fill" id="clearBtn">
-                <i class="fa-solid fa-trash-can me-2"></i> مسح الكل
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section aria-labelledby="resultsHeading" class="mt-3">
-          <h2 id="resultsHeading" class="h6 mb-2 d-flex align-items-center gap-2">
-            <i class="fa-solid fa-table-list me-1 text-secondary"></i> النتائج
-          </h2>
-
-          <div class="table-responsive">
-            <table class="table table-hover result-table align-middle mb-0">
-              <caption class="visually-hidden">قائمة العمليات المدخلة</caption>
-              <thead class="table-light small">
-                <tr>
-                  <th scope="col"><i class="fa-solid fa-money-bill-wave me-1"></i> المبلغ</th>
-                  <th scope="col"><i class="fa-solid fa-user-group me-1"></i> الأشخاص</th>
-                  <th scope="col"><i class="fa-solid fa-coins me-1"></i> الباقي</th>
-                  <th scope="col"><i class="fa-solid fa-info-circle me-1"></i> الحالة</th>
-                  <th scope="col"><i class="fa-solid fa-check me-1"></i> تم؟</th>
-                </tr>
-              </thead>
-              <tbody id="resultBody">
-                <tr class="text-muted small">
-                  <td colspan="5" class="text-center py-4">
-                    <i class="fa-regular fa-folder-open me-2"></i> لم تُسجل عمليات بعد
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <small id="fareHelp" class="form-text">قيمة الأجرة لكل شخص</small>
+            <div id="fareError" class="invalid-feedback"></div>
           </div>
 
-          <section aria-labelledby="totalsHeading" class="mt-3">
-            <h2 id="totalsHeading" class="visually-hidden">ملخص العمليات</h2>
+          <div class="mb-3">
+            <label for="total" class="form-label fw-semibold">المبلغ الإجمالي</label>
+            <div class="input-group input-group-lg">
+              <span class="input-group-text"><i class="fa-solid fa-money-bill-wave" aria-hidden="true"></i></span>
+              <input type="number" class="form-control" id="total" name="total" inputmode="decimal"
+                     min="0" step="any" required aria-describedby="totalHelp totalError">
+              <span class="input-group-text" data-currency></span>
+            </div>
+            <small id="totalHelp" class="form-text">المبلغ الكلي الذي تم دفعه أو المدخل</small>
+            <div id="totalError" class="invalid-feedback"></div>
 
-            <dl class="row g-2 totals-list">
-              <div class="col-6 col-md-4">
-                <dt class="text-muted small mb-0">عدد الإدخالات</dt>
-                <dd class="h6 mb-0"><span id="entriesCount">0</span></dd>
-              </div>
+            <div class="quick-amounts" id="quickAmounts" role="group" aria-label="مبالغ سريعة (فئات نقدية)">
+              <button type="button" class="btn btn-outline-secondary" data-amount="5"></button>
+              <button type="button" class="btn btn-outline-secondary" data-amount="10"></button>
+              <button type="button" class="btn btn-outline-secondary" data-amount="20"></button>
+              <button type="button" class="btn btn-outline-secondary" data-amount="50"></button>
+              <button type="button" class="btn btn-outline-secondary" data-amount="100"></button>
+              <button type="button" class="btn btn-outline-secondary" data-amount="200"></button>
+            </div>
+          </div>
 
-              <div class="col-6 col-md-4">
-                <dt class="text-muted small mb-0">عدد الأشخاص الذين تم التحصيل منهم</dt>
-                <dd class="h6 mb-0"><span id="peopleCount">0</span></dd>
-              </div>
+          <div class="mb-3">
+            <label for="people" class="form-label fw-semibold">عدد الأشخاص</label>
+            <div class="input-group input-group-lg">
+              <span class="input-group-text"><i class="fa-solid fa-users" aria-hidden="true"></i></span>
+              <button type="button" class="btn btn-outline-secondary" id="peopleMinus"
+                      aria-label="تقليل عدد الأشخاص" aria-controls="people">
+                <i class="fa-solid fa-minus" aria-hidden="true"></i>
+              </button>
+              <input type="number" class="form-control text-center" id="people" name="people" inputmode="numeric"
+                     min="1" step="1" value="1" required aria-describedby="peopleHelp peopleError">
+              <button type="button" class="btn btn-outline-secondary" id="peoplePlus"
+                      aria-label="زيادة عدد الأشخاص" aria-controls="people">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i>
+              </button>
+            </div>
+            <small id="peopleHelp" class="form-text">كم عدد الأشخاص المشتركين؟</small>
+            <div id="peopleError" class="invalid-feedback"></div>
+          </div>
+        </fieldset>
 
-              <div class="col-6 col-md-4">
-                <dt class="text-muted small mb-0">إجمالي المبالغ المتبقية</dt>
-                <dd class="h6 mb-0"><span id="pendingTotal">0</span></dd>
-              </div>
+        <!-- Live preview -->
+        <div class="preview" aria-labelledby="preview-title">
+          <h3 id="preview-title" class="h6 mb-2">
+            <i class="fa-solid fa-eye" aria-hidden="true"></i>
+            معاينة قبل الإضافة
+          </h3>
+          <dl class="preview__list mb-0">
+            <div>
+              <dt>المطلوب</dt>
+              <dd><output id="previewRequired" for="fare people" aria-live="polite">—</output></dd>
+            </div>
+            <div>
+              <dt>الباقي</dt>
+              <dd><output id="previewChange" for="fare total people" aria-live="polite">—</output></dd>
+            </div>
+          </dl>
+        </div>
 
-              <div class="col-6 col-md-4">
-                <dt class="text-muted small mb-0">إجمالي المال المطلوب</dt>
-                <dd class="h6 mb-0"><span id="totalRequired">0</span></dd>
-              </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+            <i class="fa-solid fa-plus" id="submitIcon" aria-hidden="true"></i>
+            <span id="submitLabel">إضافة</span>
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-lg" id="cancelEditBtn" hidden>
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            إلغاء التعديل
+          </button>
+          <button type="button" class="btn btn-outline-danger btn-lg" id="clearBtn"
+                  data-bs-toggle="modal" data-bs-target="#clearModal">
+            <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+            مسح الكل
+          </button>
+        </div>
+      </form>
+    </section>
 
-              <div class="col-6 col-md-4">
-                <dt class="text-muted small mb-0">إجمالي المال المحصّل</dt>
-                <dd class="h6 mb-0"><span id="totalCollected">0</span></dd>
-              </div>
-            </dl>
-          </section>
-        </section>
-      </article>
-    </div>
+    <!-- 2) Results -->
+    <section class="app-card" aria-labelledby="results-title">
+      <div class="results-head">
+        <h2 id="results-title" class="h5 section-title mb-0">
+          <i class="fa-solid fa-table-list" aria-hidden="true"></i>
+          العمليات
+        </h2>
+
+        <div class="results-tools no-print">
+          <fieldset class="filter-group">
+            <legend class="visually-hidden">تصفية العمليات</legend>
+            <input type="radio" class="btn-check" name="filter" id="filterAll" value="all" checked>
+            <label class="btn btn-outline-primary" for="filterAll">الكل</label>
+            <input type="radio" class="btn-check" name="filter" id="filterOpen" value="open">
+            <label class="btn btn-outline-primary" for="filterOpen">لم يتم</label>
+            <input type="radio" class="btn-check" name="filter" id="filterDone" value="done">
+            <label class="btn btn-outline-primary" for="filterDone">تم</label>
+          </fieldset>
+
+          <div class="btn-group" role="group" aria-label="تصدير وطباعة">
+            <button type="button" class="btn btn-outline-success" id="exportBtn">
+              <i class="fa-solid fa-file-csv" aria-hidden="true"></i> CSV
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="printBtn">
+              <i class="fa-solid fa-print" aria-hidden="true"></i> طباعة
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <p id="emptyState" class="empty-state" role="status">
+        <i class="fa-regular fa-folder-open" aria-hidden="true"></i>
+        <strong id="emptyText">لم تُسجل عمليات بعد</strong>
+      </p>
+
+      <div class="table-responsive" id="tableWrap" hidden>
+        <table class="table table-hover align-middle ops-table">
+          <caption class="visually-hidden">جدول العمليات المسجلة: المبلغ والأشخاص والباقي والحالة</caption>
+          <thead>
+            <tr>
+              <th scope="col">المبلغ</th>
+              <th scope="col">الأشخاص</th>
+              <th scope="col">الباقي</th>
+              <th scope="col">الحالة</th>
+              <th scope="col">تم؟</th>
+              <th scope="col" class="no-print"><span class="visually-hidden">إجراءات</span></th>
+            </tr>
+          </thead>
+          <tbody id="opsBody"></tbody>
+          <tfoot>
+            <tr>
+              <th scope="row">الإجمالي (المعروض)</th>
+              <td><data id="footPeople" value="0">0</data></td>
+              <td><data id="footChange" value="0">0</data></td>
+              <td colspan="3"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
+    <!-- 3) Summary -->
+    <section class="app-card" aria-labelledby="summary-title">
+      <h2 id="summary-title" class="h5 section-title">
+        <i class="fa-solid fa-chart-pie" aria-hidden="true"></i>
+        ملخص العمليات
+      </h2>
+
+      <dl class="summary-grid mb-0">
+        <div class="summary-card summary-card--entries">
+          <dt><i class="fa-solid fa-list-check" aria-hidden="true"></i> عدد الإدخالات</dt>
+          <dd><data value="0" data-summary="entries" data-kind="count">0</data></dd>
+        </div>
+        <div class="summary-card summary-card--people">
+          <dt><i class="fa-solid fa-users" aria-hidden="true"></i> عدد الأشخاص الذين تم التحصيل منهم</dt>
+          <dd><data value="0" data-summary="people" data-kind="count">0</data></dd>
+        </div>
+        <div class="summary-card summary-card--remaining">
+          <dt><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> إجمالي المبالغ المتبقية</dt>
+          <dd><data value="0" data-summary="remaining" data-kind="money">0</data></dd>
+        </div>
+        <div class="summary-card summary-card--required">
+          <dt><i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> إجمالي المال المطلوب</dt>
+          <dd><data value="0" data-summary="required" data-kind="money">0</data></dd>
+        </div>
+        <div class="summary-card summary-card--collected">
+          <dt><i class="fa-solid fa-sack-dollar" aria-hidden="true"></i> إجمالي المال المحصّل</dt>
+          <dd><data value="0" data-summary="collected" data-kind="money">0</data></dd>
+        </div>
+      </dl>
+    </section>
   </main>
 
-  <footer class="py-3 text-center text-muted small">
-    <div class="container">© جميع الحقوق محفوظة</div>
+  <!-- ===================== Footer ===================== -->
+  <footer class="app-footer no-print">
+    <p class="mb-0"><small>© جميع الحقوق محفوظة</small></p>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="main.js"></script>
+  <!-- ===================== Templates ===================== -->
+  <template id="rowTemplate">
+    <tr class="op-row">
+      <th scope="row" class="op-amount">
+        <data class="op-paid"></data>
+        <small class="d-block text-body-secondary op-detail"></small>
+        <small class="d-block text-body-secondary"><time class="op-time"></time></small>
+      </th>
+      <td><data class="op-people"></data></td>
+      <td><data class="op-change"></data></td>
+      <td>
+        <mark class="badge op-status">
+          <i class="fa-solid op-status-icon" aria-hidden="true"></i>
+          <strong class="op-status-text"></strong>
+        </mark>
+      </td>
+      <td>
+        <div class="form-check form-switch">
+          <input class="form-check-input op-done" type="checkbox" role="switch">
+          <label class="form-check-label op-done-label">تم</label>
+        </div>
+      </td>
+      <td class="no-print">
+        <div class="op-actions">
+          <button type="button" class="btn btn-sm btn-outline-primary" data-action="edit">
+            <i class="fa-solid fa-pen" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete">
+            <i class="fa-solid fa-trash" aria-hidden="true"></i>
+          </button>
+        </div>
+      </td>
+    </tr>
+  </template>
+
+  <template id="toastTemplate">
+    <div class="toast align-items-center text-bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex align-items-center">
+        <p class="toast-body mb-0 flex-grow-1"></p>
+        <button type="button" class="btn btn-sm btn-warning toast-action" hidden>
+          <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+          <span class="toast-action-label">تراجع</span>
+        </button>
+        <button type="button" class="btn-close btn-close-white mx-2" data-bs-dismiss="toast" aria-label="إغلاق"></button>
+      </div>
+    </div>
+  </template>
+
+  <div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3 no-print" id="toastHost"></div>
+
+  <!-- ===================== Modals ===================== -->
+  <div class="modal fade" id="instructionsModal" tabindex="-1" role="dialog" aria-modal="true"
+       aria-labelledby="instructionsTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="instructionsTitle">
+            <i class="fa-solid fa-circle-question" aria-hidden="true"></i> طريقة الاستخدام
+          </h2>
+          <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+        </div>
+        <div class="modal-body">
+          <h3 class="h6">الخطوات</h3>
+          <ol>
+            <li>أدخل <strong>الأجرة للفرد</strong>؛ تُحفظ تلقائيًا للعمليات التالية.</li>
+            <li>أدخل <strong>المبلغ الإجمالي</strong> أو اضغط على فئة نقدية سريعة.</li>
+            <li>حدّد <strong>عدد الأشخاص</strong> بالأزرار + و −.</li>
+            <li>راجع <strong>المعاينة</strong> ثم اضغط «إضافة» أو زر Enter.</li>
+            <li>عند تسليم الباقي للراكب، فعّل مفتاح «تم» في صف العملية.</li>
+          </ol>
+          <h3 class="h6">نصائح</h3>
+          <ul class="mb-0">
+            <li>الباقي = المبلغ الإجمالي − (الأجرة × عدد الأشخاص).</li>
+            <li>«إجمالي المبالغ المتبقية» يحسب الباقي للراجع في العمليات غير المنتهية فقط.</li>
+            <li>يمكنك التراجع عن الحذف أو مسح الكل من الإشعار الذي يظهر أسفل الشاشة.</li>
+            <li>تُحفظ بياناتك على جهازك فقط، ويعمل التطبيق بدون إنترنت بعد أول فتح.</li>
+            <li>استخدم CSV لفتح العمليات في Excel، أو «طباعة» لنسخة ورقية.</li>
+          </ul>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">فهمت</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="clearModal" tabindex="-1" role="dialog" aria-modal="true"
+       aria-labelledby="clearTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="clearTitle">
+            <i class="fa-solid fa-triangle-exclamation text-danger" aria-hidden="true"></i> مسح كل العمليات؟
+          </h2>
+          <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0">سيتم حذف <strong id="clearCount">0</strong> عملية. يمكنك التراجع بعد ذلك لفترة قصيرة.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">إلغاء</button>
+          <button type="button" class="btn btn-danger" id="confirmClear">
+            <i class="fa-solid fa-trash-can" aria-hidden="true"></i> نعم، امسح الكل
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="settingsModal" tabindex="-1" role="dialog" aria-modal="true"
+       aria-labelledby="settingsTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="settingsTitle">
+            <i class="fa-solid fa-gear" aria-hidden="true"></i> الإعدادات
+          </h2>
+          <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+        </div>
+        <div class="modal-body">
+          <fieldset class="mb-3">
+            <legend class="form-label fw-semibold fs-6">شكل الأرقام</legend>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="digits" id="digitsEn" value="en" checked>
+              <label class="form-check-label" for="digitsEn">إنجليزية (0123)</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="digits" id="digitsAr" value="ar">
+              <label class="form-check-label" for="digitsAr">عربية (٠١٢٣)</label>
+            </div>
+          </fieldset>
+          <div>
+            <label for="currencyInput" class="form-label fw-semibold">رمز العملة</label>
+            <input type="text" class="form-control" id="currencyInput" maxlength="10" aria-describedby="currencyHelp">
+            <small id="currencyHelp" class="form-text">الافتراضي: ج.م</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">تم</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
+  <script src="script.js" defer></script>
 </body>
 </html>
