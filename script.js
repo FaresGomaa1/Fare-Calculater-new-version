@@ -1,31 +1,28 @@
 /*
- * README — Fare Calculator (حاسبة الأجرة) v2
+ * README — Fare Calculator (حاسبة الأجرة)
  * ------------------------------------------------------------------
- * Front-end only, vanilla JS, no build step. One IIFE, no globals.
+ * Front-end only. No build step. Everything lives in one IIFE (no globals).
  *
  * Structure (top to bottom):
- *   1. CONFIG & DOM       constants, element lookups
- *   2. STATE & STORAGE    state, localStorage load/save, backup validation
- *   3. CALCULATE          pure money maths, statuses, summary, view pipeline
- *   4. FORMAT             digits (Arabic/English), money, date/time
- *   5. RENDER             dashboard, table (via <template>), preview, UI bits
- *   6. FEEDBACK           toasts + undo, screen-reader announcements, sound
- *   7. DIALOGS            native <dialog> helpers (focus restore, exit animation)
- *   8. ACTIONS            add / edit / duplicate / delete / clear / settle / presets
- *   9. EXPORT & IMPORT    CSV (UTF-8 BOM), JSON backup + restore, copy summary, print
- *  10. EVENTS             every listener is bound once, in one place
- *  11. INIT               boot sequence + service worker
+ *   1. CONFIG & DOM      constants, element lookups
+ *   2. STATE & STORAGE   in-memory state, localStorage load/save
+ *   3. CALCULATE         pure money maths + status + summary totals
+ *   4. FORMAT            digits (Arabic/English), money, date/time
+ *   5. RENDER            table rows (via <template>), summary, preview, UI
+ *   6. FEEDBACK          toasts (with undo), sound / vibration
+ *   7. ACTIONS           add / edit / delete / clear / toggle done / undo
+ *   8. EXPORT & PRINT    CSV (UTF-8 BOM) and print view
+ *   9. EVENTS            all listeners are wired in one place
+ *  10. INIT              boot sequence + service-worker registration
  *
  * Money rules
  *   required  = fare × people
- *   change    = paid − required      (>0 owed back, 0 exact, <0 shortage)
- *   collected = sum of what was actually paid
- *   remaining = sum of positive change on operations NOT marked settled ("تم")
+ *   change    = paid − required        (>0 owed back, 0 exact, <0 shortage)
+ *   collected = min(paid, required)    (what the fare actually brought in)
+ *   remaining = sum of positive change on rows NOT yet marked "تم"
  *
- * Storage: key "fareCalc:v1" is kept from the first release, so saved data
- * from older versions loads unchanged. New fields are optional.
- *
- * Security: user data is only written with textContent / value / dataset.
+ * Security: user-provided values are only ever written with textContent /
+ * value / dataset — never innerHTML.
  */
 (function () {
   'use strict';
@@ -34,15 +31,9 @@
    * 1. CONFIG & DOM
    * ================================================================= */
   const STORAGE_KEY = 'fareCalc:v1';
-  const APP_ID = 'fare-calculator';
   const DEFAULT_CURRENCY = 'ج.م';
   const UNDO_MS = 8000;
-  const TOAST_MS = 3500;
   const MAX_OPS = 2000;
-  const MAX_PRESETS = 8;
-  const MAX_AMOUNT = 1e9;
-  const MAX_PEOPLE = 9999;
-  const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -57,176 +48,85 @@
     peopleMinus: $('#peopleMinus'),
     peoplePlus: $('#peoplePlus'),
     quick: $('#quickAmounts'),
-    presetChips: $('#presetChips'),
-    savePreset: $('#savePreset'),
-    preview: $('#preview'),
     previewRequired: $('#previewRequired'),
-    previewPaid: $('#previewPaid'),
     previewChange: $('#previewChange'),
-    previewChangeLabel: $('#previewChangeLabel'),
+    submitBtn: $('#submitBtn'),
     submitIcon: $('#submitIcon'),
     submitLabel: $('#submitLabel'),
     cancelEdit: $('#cancelEditBtn'),
     clearBtn: $('#clearBtn'),
-    modeBadge: $('#modeBadge'),
-    search: $('#search'),
-    sort: $('#sort'),
-    resetFilters: $('#resetFilters'),
-    resultCount: $('#resultCount'),
+    clearModal: $('#clearModal'),
+    clearCount: $('#clearCount'),
+    confirmClear: $('#confirmClear'),
     body: $('#opsBody'),
-    table: $('#opsTable'),
     tableWrap: $('#tableWrap'),
     empty: $('#emptyState'),
-    noResults: $('#noResults'),
-    emptyAction: $('#emptyAction'),
-    noResultsAction: $('#noResultsAction'),
-    historyTitle: $('#history-title'),
-    footPaid: $('#footPaid'),
+    emptyText: $('#emptyText'),
     footPeople: $('#footPeople'),
     footChange: $('#footChange'),
     rowTpl: $('#rowTemplate'),
-    toasts: $('#toasts'),
-    sr: $('#srStatus'),
+    toastTpl: $('#toastTemplate'),
+    toastHost: $('#toastHost'),
     themeToggle: $('#themeToggle'),
     themeIcon: $('#themeIcon'),
-    settingsBtn: $('#settingsBtn'),
-    helpBtn: $('#helpBtn'),
+    soundToggle: $('#soundToggle'),
+    soundIcon: $('#soundIcon'),
     exportBtn: $('#exportBtn'),
     printBtn: $('#printBtn'),
     printStamp: $('#printStamp'),
-    copyBtn: $('#copyBtn'),
-    helpDialog: $('#helpDialog'),
-    clearDialog: $('#clearDialog'),
-    clearCount: $('#clearCount'),
-    settingsDialog: $('#settingsDialog'),
     currencyInput: $('#currencyInput'),
-    optSound: $('#optSound'),
-    optHaptics: $('#optHaptics'),
-    presetManage: $('#presetManage'),
-    presetEmpty: $('#presetEmpty'),
-    exportJson: $('#exportJson'),
-    importBtn: $('#importBtn'),
-    importFile: $('#importFile'),
-    importMsg: $('#importMsg'),
     themeMeta: $('meta[name="theme-color"]'),
-    stats: $$('[data-stat]'),
-    facts: $$('[data-fact]'),
-    breaks: $$('[data-break]'),
+    summary: $$('[data-summary]'),
   };
-
-  const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* =================================================================
    * 2. STATE & STORAGE
    * ================================================================= */
   const state = {
-    ops: [],            // [{id, fare, people, paid, done, ts, updatedAt?}] — stored data
+    ops: [],            // [{id, fare, people, paid, done, ts}]
     fare: '',           // last fare value (kept between operations)
-    presets: [],        // saved per-person fares
     theme: 'auto',      // 'auto' | 'light' | 'dark'
-    muted: false,       // sound muted
-    haptics: true,      // vibration on add
+    muted: false,
     digits: 'en',       // 'en' | 'ar'
     currency: DEFAULT_CURRENCY,
-    filter: 'all',      // 'all' | 'open' | 'done'   (view only)
-    sort: 'newest',     // 'newest' | 'oldest' | 'amount' | 'change' (view only)
-    search: '',         // view only, not persisted
-    editingId: null,    // view only
+    filter: 'all',      // 'all' | 'open' | 'done'
+    editingId: null,
   };
 
-  let undoSnapshot = null;
-  let undoToast = null;
-  let storageWarned = false;
-  let lastAddedId = null;
-
-  /** Validate one stored/imported operation. */
-  function isValidOp(o) {
-    return !!o && typeof o === 'object'
-      && typeof o.id === 'string' && /^[\w-]{1,40}$/.test(o.id)
-      && Number.isFinite(o.fare) && o.fare >= 0 && o.fare <= MAX_AMOUNT
-      && Number.isFinite(o.paid) && o.paid >= 0 && o.paid <= MAX_AMOUNT
-      && Number.isInteger(o.people) && o.people >= 1 && o.people <= MAX_PEOPLE
-      && typeof o.ts === 'string' && !Number.isNaN(new Date(o.ts).getTime());
-  }
-
-  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-
-  /** Copy only known fields and make ids unique. */
-  function normalizeOps(list) {
-    const seen = new Set();
-    return list.map((o) => {
-      let id = o.id;
-      if (seen.has(id)) id = uid();
-      seen.add(id);
-      const clean = { id, fare: o.fare, paid: o.paid, people: o.people, done: o.done === true, ts: o.ts };
-      if (typeof o.updatedAt === 'string' && !Number.isNaN(new Date(o.updatedAt).getTime())) clean.updatedAt = o.updatedAt;
-      return clean;
-    });
-  }
-
-  function cleanPresets(list) {
-    if (!Array.isArray(list)) return [];
-    const out = [];
-    for (const v of list) {
-      const n = Number(v);
-      if (Number.isFinite(n) && n > 0 && n <= MAX_AMOUNT && !out.includes(n)) out.push(n);
-    }
-    return out.sort((a, b) => a - b).slice(0, MAX_PRESETS);
-  }
-
-  /** Apply the optional preference fields of a stored/imported object. */
-  function applyPrefs(raw) {
-    if (typeof raw.fare === 'string' || typeof raw.fare === 'number') state.fare = String(raw.fare);
-    if (['auto', 'light', 'dark'].includes(raw.theme)) state.theme = raw.theme;
-    if (typeof raw.muted === 'boolean') state.muted = raw.muted;
-    if (typeof raw.haptics === 'boolean') state.haptics = raw.haptics;
-    if (['en', 'ar'].includes(raw.digits)) state.digits = raw.digits;
-    if (typeof raw.currency === 'string' && raw.currency.trim()) state.currency = raw.currency.trim().slice(0, 10);
-    if (['all', 'open', 'done'].includes(raw.filter)) state.filter = raw.filter;
-    if (['newest', 'oldest', 'amount', 'change'].includes(raw.sort)) state.sort = raw.sort;
-    if (Array.isArray(raw.presets)) state.presets = cleanPresets(raw.presets);
-  }
+  let undoSnapshot = null;   // copy of ops before last delete / clear
+  let undoTimer = null;
+  const shown = {};          // last displayed summary values (for count-up)
 
   const Storage = {
     load() {
       try {
         const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
         if (!raw || typeof raw !== 'object') return;
-        if (Array.isArray(raw.ops)) state.ops = normalizeOps(raw.ops.filter(isValidOp)).slice(0, MAX_OPS);
-        applyPrefs(raw);
+        if (Array.isArray(raw.ops)) state.ops = raw.ops.filter(isValidOp).slice(0, MAX_OPS);
+        if (typeof raw.fare === 'string' || typeof raw.fare === 'number') state.fare = String(raw.fare);
+        if (['auto', 'light', 'dark'].includes(raw.theme)) state.theme = raw.theme;
+        if (typeof raw.muted === 'boolean') state.muted = raw.muted;
+        if (['en', 'ar'].includes(raw.digits)) state.digits = raw.digits;
+        if (typeof raw.currency === 'string' && raw.currency.trim()) state.currency = raw.currency.trim().slice(0, 10);
+        if (['all', 'open', 'done'].includes(raw.filter)) state.filter = raw.filter;
       } catch (e) { /* corrupted or blocked storage: start fresh */ }
     },
     save() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          ops: state.ops, fare: state.fare, presets: state.presets, theme: state.theme,
-          muted: state.muted, haptics: state.haptics, digits: state.digits,
-          currency: state.currency, filter: state.filter, sort: state.sort,
+          ops: state.ops, fare: state.fare, theme: state.theme, muted: state.muted,
+          digits: state.digits, currency: state.currency, filter: state.filter,
         }));
-        return true;
-      } catch (e) {
-        if (!storageWarned) {
-          storageWarned = true;
-          showToast('تعذّر حفظ البيانات على هذا الجهاز. قد تضيع عند إغلاق الصفحة.', { type: 'error', duration: 6000 });
-        }
-        return false;
-      }
+      } catch (e) { /* storage full / private mode: ignore */ }
     },
   };
 
-  /** Parse and validate a JSON backup. Returns {data} or {error}. */
-  function parseBackup(text) {
-    let raw;
-    try { raw = JSON.parse(text); } catch (e) { return { error: 'الملف ليس بصيغة JSON صالحة.' }; }
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { error: 'بنية الملف غير صحيحة.' };
-    if (raw.app && raw.app !== APP_ID) return { error: 'هذا الملف ليس نسخة احتياطية من حاسبة الأجرة.' };
-    const data = raw.data && typeof raw.data === 'object' ? raw.data : raw;
-    if (!Array.isArray(data.ops)) return { error: 'لا يحتوي الملف على قائمة عمليات.' };
-    if (data.ops.length > MAX_OPS) return { error: `عدد العمليات يتجاوز الحد المسموح (${MAX_OPS}).` };
-    const bad = data.ops.findIndex((o) => !isValidOp(o));
-    if (bad !== -1) return { error: `العملية رقم ${bad + 1} في الملف غير صالحة.` };
-    return { data: { ...data, ops: normalizeOps(data.ops) } };
+  function isValidOp(o) {
+    return o && typeof o.id === 'string' && Number.isFinite(o.fare) && Number.isFinite(o.paid)
+      && Number.isInteger(o.people) && o.people >= 1 && typeof o.ts === 'string';
   }
+
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
   /* =================================================================
    * 3. CALCULATE
@@ -237,70 +137,42 @@
     const required = round2(op.fare * op.people);
     const change = round2(op.paid - required);
     const status = change > 0 ? 'owed' : change === 0 ? 'paid' : 'short';
-    return { required, change, status };
+    return { required, change, status, collected: Math.min(op.paid, required) };
   }
 
   function calcSummary(ops) {
-    const s = {
-      entries: ops.length, people: 0, required: 0, collected: 0, remaining: 0,
-      paidN: 0, paidAmt: 0, owedN: 0, owedAmt: 0, shortN: 0, shortAmt: 0, settledN: 0, settledAmt: 0,
-    };
+    const s = { entries: ops.length, people: 0, remaining: 0, required: 0, collected: 0 };
     for (const op of ops) {
       const c = calcOp(op);
       s.people += op.people;
       s.required += c.required;
-      s.collected += op.paid;
-      if (c.status === 'paid') { s.paidN++; s.paidAmt += op.paid; }
-      if (c.status === 'short') { s.shortN++; s.shortAmt += -c.change; }
-      if (c.status === 'owed' && !op.done) { s.owedN++; s.owedAmt += c.change; s.remaining += c.change; }
-      if (op.done) { s.settledN++; if (c.change > 0) s.settledAmt += c.change; }
+      s.collected += c.collected;
+      if (!op.done && c.change > 0) s.remaining += c.change;
     }
-    ['required', 'collected', 'remaining', 'paidAmt', 'owedAmt', 'shortAmt', 'settledAmt']
-      .forEach((k) => { s[k] = round2(s[k]); });
+    s.required = round2(s.required);
+    s.collected = round2(s.collected);
+    s.remaining = round2(s.remaining);
     return s;
   }
 
-  /** Convert Arabic-Indic / Persian digits to Latin so search works either way. */
-  function normalizeDigits(str) {
-    return String(str)
-      .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
-      .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
-      .replace(/[٫،]/g, '.');
-  }
-
-  function matchesSearch(op, q) {
-    if (!q) return true;
-    const c = calcOp(op);
-    return [op.paid, c.required, Math.abs(c.change), op.people].some((n) => String(n).includes(q));
-  }
-
-  /** Filter + search + sort. Never mutates stored data. */
-  function getView() {
-    const q = normalizeDigits(state.search.trim());
-    const list = state.ops.filter((o) =>
-      (state.filter === 'all' || (state.filter === 'done' ? o.done : !o.done)) && matchesSearch(o, q));
-    const time = (o) => new Date(o.ts).getTime();
-    const sorters = {
-      newest: (a, b) => time(b) - time(a),
-      oldest: (a, b) => time(a) - time(b),
-      amount: (a, b) => b.paid - a.paid,
-      change: (a, b) => calcOp(b).change - calcOp(a).change,
-    };
-    return list.map((o, i) => ({ o, i })).sort((a, b) => sorters[state.sort](a.o, b.o) || a.i - b.i).map((x) => x.o);
-  }
+  const visibleOps = () => state.ops.filter((o) =>
+    state.filter === 'all' ? true : state.filter === 'done' ? o.done : !o.done);
 
   /* =================================================================
    * 4. FORMAT
    * ================================================================= */
   const locale = () => (state.digits === 'ar' ? 'ar-EG' : 'en-US');
-  const fmtNum = (n) => new Intl.NumberFormat(locale(), { maximumFractionDigits: 2 }).format(n);
+  const nf = () => new Intl.NumberFormat(locale(), { maximumFractionDigits: 2, useGrouping: true });
+  const fmtNum = (n) => nf().format(n);
   const fmtMoney = (n) => `${fmtNum(n)} ${state.currency}`;
   const fmtSigned = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmtMoney(Math.abs(n));
 
   function fmtDateTime(iso) {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    return new Intl.DateTimeFormat(state.digits === 'ar' ? 'ar-EG' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' }).format(d);
+    return new Intl.DateTimeFormat(state.digits === 'ar' ? 'ar-EG' : 'en-GB', {
+      dateStyle: 'short', timeStyle: 'short',
+    }).format(d);
   }
 
   const STATUS = {
@@ -312,26 +184,19 @@
   /* =================================================================
    * 5. RENDER
    * ================================================================= */
-  const mqCards = window.matchMedia('(max-width: 639.98px)');
-
-  function opLabel(op) {
-    return `عملية ${fmtMoney(op.paid)} لـ ${fmtNum(op.people)} أشخاص`;
-  }
-
   function buildRow(op) {
     const c = calcOp(op);
     const row = el.rowTpl.content.firstElementChild.cloneNode(true);
     row.dataset.id = op.id;
-    row.classList.toggle('is-done', op.done);
+    row.classList.toggle('is-done', !!op.done);
     row.classList.toggle('is-editing', op.id === state.editingId);
-    row.classList.toggle('is-new', op.id === lastAddedId);
-    row.dataset.status = c.status;
 
     const paid = $('.op-paid', row);
     paid.value = String(op.paid);
     paid.textContent = fmtMoney(op.paid);
 
-    $('.op__calc', row).textContent = `${fmtNum(op.fare)} × ${fmtNum(op.people)} = ${fmtMoney(c.required)}`;
+    $('.op-detail', row).textContent =
+      `${fmtNum(op.fare)} × ${fmtNum(op.people)} = ${fmtMoney(c.required)}`;
 
     const time = $('.op-time', row);
     time.dateTime = op.ts;
@@ -343,147 +208,49 @@
 
     const chg = $('.op-change', row);
     chg.value = String(c.change);
-    chg.textContent = fmtMoney(Math.abs(c.change));
+    chg.textContent = c.status === 'paid' ? fmtMoney(0) : fmtMoney(Math.abs(c.change));
     if (c.status === 'short') chg.textContent = `− ${chg.textContent}`;
-    if (op.done) {
-      const del = document.createElement('del');
-      del.textContent = chg.textContent;
-      chg.textContent = '';
-      chg.appendChild(del);
-    }
 
     const st = STATUS[c.status];
-    $('.badge', row).classList.add(st.cls);
-    $('.badge i', row).classList.add(st.icon);
-    $('.op-status', row).textContent = st.text;
-    $('.badge--settled', row).hidden = !op.done;
+    const badge = $('.op-status', row);
+    badge.classList.add(st.cls);
+    $('.op-status-icon', row).classList.add(st.icon);
+    $('.op-status-text', row).textContent = st.text;
 
+    // "تم؟" switch — unique id so the label is bound natively.
     const cb = $('.op-done', row);
-    cb.checked = op.done;
-    cb.setAttribute('aria-label', `تم: ${opLabel(op)}`);
-    $('.switch__text', row).textContent = op.done ? 'تم' : 'لم يتم';
+    const lbl = $('.op-done-label', row);
+    cb.id = `done-${op.id}`;
+    cb.checked = !!op.done;
+    lbl.htmlFor = cb.id;
+    lbl.textContent = op.done ? 'تم' : 'لم يتم';
 
-    $$('td[data-label]', row).forEach((td) => { /* labels come from the template */ td.dataset.label = td.dataset.label; });
+    // Mobile card labels (CSS ::before reads data-label).
+    const labels = ['الأشخاص', 'الباقي', 'الحالة', 'تم؟'];
+    $$('td', row).slice(0, 4).forEach((td, i) => { td.dataset.label = labels[i]; });
 
+    // Strike through the text of settled rows with <del>.
+    if (op.done) {
+      [paid, ppl, chg].forEach((node) => {
+        const del = document.createElement('del');
+        del.textContent = node.textContent;
+        node.textContent = '';
+        node.appendChild(del);
+      });
+    }
+
+    // Accessible names for icon-only buttons.
+    const summaryText = `عملية ${fmtMoney(op.paid)} لـ ${fmtNum(op.people)} أشخاص`;
     const edit = $('[data-action="edit"]', row);
-    const dup = $('[data-action="duplicate"]', row);
     const del = $('[data-action="delete"]', row);
-    edit.setAttribute('aria-label', `تعديل ${opLabel(op)}`);
-    dup.setAttribute('aria-label', `تكرار ${opLabel(op)}`);
-    del.setAttribute('aria-label', `حذف ${opLabel(op)}`);
+    edit.setAttribute('aria-label', `تعديل ${summaryText}`);
+    del.setAttribute('aria-label', `حذف ${summaryText}`);
     edit.title = 'تعديل';
-    dup.title = 'تكرار';
     del.title = 'حذف';
     return row;
   }
 
-  /**
-   * On narrow screens the table is drawn as cards (display:grid). Some browsers
-   * drop table semantics when display is overridden, so the native roles are
-   * restored explicitly in that mode only.
-   */
-  function syncTableRoles() {
-    const on = mqCards.matches;
-    const set = (n, r) => { if (on) n.setAttribute('role', r); else n.removeAttribute('role'); };
-    set(el.table, 'table');
-    $$('thead, tbody, tfoot', el.table).forEach((n) => set(n, 'rowgroup'));
-    $$('tr', el.table).forEach((n) => set(n, 'row'));
-    $$('thead th', el.table).forEach((n) => set(n, 'columnheader'));
-    $$('tbody th, tfoot th', el.table).forEach((n) => set(n, 'rowheader'));
-    $$('td', el.table).forEach((n) => set(n, 'cell'));
-  }
-
   function renderTable() {
-    const view = getView();
-    el.body.replaceChildren(...view.map(buildRow));
-    lastAddedId = null;
-
-    const total = state.ops.length;
-    const none = total === 0;
-    const noMatch = !none && view.length === 0;
-    el.empty.hidden = !none;
-    el.noResults.hidden = !noMatch;
-    el.tableWrap.hidden = view.length === 0;
-    el.resultCount.textContent = none ? '' : view.length === total
-      ? `${fmtNum(total)} عملية`
-      : `عرض ${fmtNum(view.length)} من ${fmtNum(total)}`;
-
-    const paid = round2(view.reduce((n, o) => n + o.paid, 0));
-    const people = view.reduce((n, o) => n + o.people, 0);
-    const change = round2(view.reduce((n, o) => n + calcOp(o).change, 0));
-    el.footPaid.value = String(paid);
-    el.footPaid.textContent = fmtMoney(paid);
-    el.footPeople.value = String(people);
-    el.footPeople.textContent = fmtNum(people);
-    el.footChange.value = String(change);
-    el.footChange.textContent = fmtSigned(change);
-
-    syncTableRoles();
-  }
-
-  /** Animated count-up; jumps straight to the value when motion is reduced. */
-  function setValue(node, target) {
-    const money = node.dataset.kind === 'money' || /-amt$/.test(node.dataset.break || '');
-    const render = (n) => { node.textContent = money ? fmtMoney(n) : fmtNum(Math.round(n)); };
-    const from = node._shown ?? 0;
-    node._shown = target;
-    node.value = String(target);
-    cancelAnimationFrame(node._raf);
-    if (reducedMotion() || from === target) { render(target); return; }
-    const start = performance.now();
-    const dur = 550;
-    const tick = (now) => {
-      const t = Math.min(1, (now - start) / dur);
-      render(from + (target - from) * (1 - Math.pow(1 - t, 3)));
-      if (t < 1) node._raf = requestAnimationFrame(tick);
-    };
-    node._raf = requestAnimationFrame(tick);
-  }
-
-  function renderSummary() {
-    const s = calcSummary(state.ops);
-    el.stats.forEach((n) => setValue(n, s[n.dataset.stat]));
-    el.facts.forEach((n) => setValue(n, s[n.dataset.fact]));
-    const map = {
-      'paid-n': s.paidN, 'paid-amt': s.paidAmt, 'owed-n': s.owedN, 'owed-amt': s.owedAmt,
-      'short-n': s.shortN, 'short-amt': s.shortAmt, 'settled-n': s.settledN, 'settled-amt': s.settledAmt,
-    };
-    el.breaks.forEach((n) => setValue(n, map[n.dataset.break]));
-  }
-
-  /** Read the three inputs without any side effects. */
-  function readInputs() {
-    const fare = el.fare.value.trim() === '' ? NaN : Number(el.fare.value);
-    const total = el.total.value.trim() === '' ? NaN : Number(el.total.value);
-    const people = el.people.value.trim() === '' ? NaN : Number(el.people.value);
-    return { fare, total, people };
-  }
-
-  function renderPreview() {
-    const { fare, total, people } = readInputs();
-    const okFare = Number.isFinite(fare) && fare >= 0;
-    const okPeople = Number.isInteger(people) && people >= 1;
-    const okTotal = Number.isFinite(total) && total >= 0;
-    const required = okFare && okPeople ? round2(fare * people) : null;
-
-    el.previewRequired.textContent = required === null ? '—' : fmtMoney(required);
-    el.previewPaid.textContent = okTotal ? fmtMoney(total) : '—';
-
-    let stateName = 'idle';
-    let text = '—';
-    let label = 'الباقي أو العجز';
-    if (required !== null && okTotal) {
-      const change = round2(total - required);
-      stateName = change > 0 ? 'owed' : change === 0 ? 'paid' : 'short';
-      label = stateName === 'short' ? 'العجز' : 'الباقي';
-      text = stateName === 'paid' ? `${fmtMoney(0)} — ${STATUS.paid.text}`
-        : `${fmtMoney(Math.abs(change))} — ${STATUS[stateName].text}`;
-    }
-    if (el.previewChange.textContent !== text) {
-      el.previewChange.textContent = text;
-      if (!reducedMotion()) {
-        el.previewChange.classList.remove('bump');
-        void el.previewChange) {
     const list = visibleOps();
     el.body.replaceChildren(...list.map(buildRow));
 
